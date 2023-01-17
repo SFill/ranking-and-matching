@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: final_project
+      dockerfile: "Dockerfile"
+    ports:
+      - 11000:11000 
+    volumes:
+      - ./final_project:/workspace
+    environment:
+      - EMB_PATH_GLOVE=additional_data/glove.6B.50d.txt
+      - EMB_PATH_KNRM=additional_data/knrm_emb.bin
+      - VOCAB_PATH=additional_data/vocab.json
+      - MLP_PATH=additional_data/knrm_mlp.bin

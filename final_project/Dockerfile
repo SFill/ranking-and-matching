@@ -22,6 +22,12 @@ RUN python -m nltk.downloader punkt
 RUN conda install scikit-learn==0.23.2 catboost==0.23 scrapy==2.4.1 faiss-cpu==1.7.0 -c conda-forge && /opt/conda/bin/conda clean -ya
 RUN python -m pip install langdetect==1.0.8
 
-COPY additional_data/ /additional_data/
 WORKDIR /workspace
+COPY additional_data/ /additional_data/
+
 RUN chmod -R a+w /workspace
+
+COPY . .
+
+# ENTRYPOINT [ "bash", "-c", "FLASK_APP=solution.py FLASK_DEBUG=1 WERKZEUG_DEBUG_PIN=off flask run --port 11000 --host=0.0.0.0" ]
+ENTRYPOINT [ "bash", "-c", "FLASK_APP=main.py FLASK_DEBUG=1 WERKZEUG_DEBUG_PIN=off flask run --port 11000 --host=0.0.0.0" ]
