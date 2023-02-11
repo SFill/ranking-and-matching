@@ -23,9 +23,6 @@ KNRM_OUT_LAYERS = []
 EMB_SHAPE = (10, 50)
 
 
-
-
-
 def load_services():
 
     # ooo_val = 1
@@ -33,7 +30,6 @@ def load_services():
     # vocab = {
     #     f'mama{i}': i for i in range(10)
     # }
-    
 
     # emb_matrix = np.random.random(EMB_SHAPE).astype('float32')
 
@@ -43,16 +39,16 @@ def load_services():
         os.environ['VOCAB_PATH'],
     )
 
-    
     global_context = {}
     global_context['index'] = SearchIndex(glove_embs_matrix)
-    
+
     global_context['preproc_index'] = Preproc(
         glove_vocab, oov_val=glove_vocab['OOV'], pad_val=glove_vocab['PAD'])
     global_context['preproc_knrm'] = Preproc(
         knrm_vocab, oov_val=knrm_vocab['OOV'], pad_val=knrm_vocab['PAD'])
 
-    knrm = KNRM(knrm_embs_matrix, freeze_embeddings=True, out_layers=KNRM_OUT_LAYERS)
+    knrm = KNRM(knrm_embs_matrix, freeze_embeddings=True,
+                out_layers=KNRM_OUT_LAYERS)
     knrm.load_mlp(os.environ['MLP_PATH'])
     knrm.eval()
     global_context['knrm'] = knrm
@@ -72,12 +68,13 @@ def load_services():
 GLOBAL_CONTEXT = load_services()
 
 
-def response_ok():
-    return {'status': "ok"}
+def response_ok(attrs: Dict = {}):
+    return {'status': "ok", **attrs}
 
 
 def response_error(status):
     return {'status': status}
+
 
 def ping_view():
     return response_ok()
@@ -88,7 +85,8 @@ def query_view():
     knrm: KNRM = GLOBAL_CONTEXT.get('knrm')
     preproc_index: Preproc = GLOBAL_CONTEXT.get('preproc_index')
     preproc_knrm: Preproc = GLOBAL_CONTEXT.get('preproc_knrm')
-    document_matrix_knrm: np.ndarray = GLOBAL_CONTEXT.get('document_matrix_knrm')
+    document_matrix_knrm: np.ndarray = GLOBAL_CONTEXT.get(
+        'document_matrix_knrm')
     document_src: Dict[str, str] = GLOBAL_CONTEXT.get('document_src')
     system_id_to_doc_id: Dict[int, str] = GLOBAL_CONTEXT.get(
         'system_id_to_doc_id')
@@ -125,7 +123,7 @@ def query_view():
     for english_idx, q_vector, candidate_idxs in zip(qs_english_idx, knrm_vectors, candidates_idx_matrix):
         # вытащили вектора слов кандидатов
         candidate_vectors = document_matrix_knrm[candidate_idxs]
-        
+
         knrm_queries = torch.LongTensor([q_vector] * len(candidate_vectors))
         knrm_documents = torch.LongTensor(candidate_vectors)
         print(knrm_queries.shape, knrm_documents.shape)
@@ -193,21 +191,18 @@ def update_index_view():
     # debug
     system_id_to_doc_id[-1] = '1'
 
-
     vectors = preproc_index(texts)
 
     index.add(vectors)
-    
 
     knrm_vectors = preproc_knrm(texts)
     GLOBAL_CONTEXT['document_matrix_knrm'] = np.array(knrm_vectors)
     GLOBAL_CONTEXT['document_src'] = documents
     GLOBAL_CONTEXT['system_id_to_doc_id'] = system_id_to_doc_id
 
-    return {
-        'status': 'ok',
+    return response_ok({
         'index_size': index.index.ntotal
-    }
+    })
 
 
 def create_app():

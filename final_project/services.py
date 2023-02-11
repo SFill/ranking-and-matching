@@ -116,7 +116,7 @@ class SearchIndex:
     def idx_vectors_to_doc_vectors(self, vectors):
         to_stuck = []
         for v in vectors:
-            v = self.embedding_matrix[v].sum(axis=0)
+            v = self.embedding_matrix[v].mean(axis=0)
             to_stuck.append(v)
         return np.array(to_stuck)
 
