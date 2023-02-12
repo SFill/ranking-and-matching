@@ -5,40 +5,15 @@ import re
 import string
 import numpy as np
 import pandas as pd
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 
 import faiss
-from final_project.model import KNRM
+from .model import KNRM
 import nltk
 
 from langdetect import detect
 
 import torch
-
-
-# def _filter_rare_words(vocab: Dict[str, int], min_occurancies: int) -> Dict[str, int]:
-#     result = []
-#     for el,occr in vocab.items():
-#         if occr >= min_occurancies:
-#             result.append(el)
-#     return result
-
-
-# def get_all_tokens(list_of_df: List[pd.DataFrame], min_occurancies: int) -> List[str]:
-#     uniq_txt = set()
-#     key_left = 'text_left'
-#     key_right = 'text_right'
-
-#     for df in list_of_df:
-#         for txt in df[key_left].values:
-#             uniq_txt.add(txt)
-#         for txt in df[key_right].values:
-#             uniq_txt.add(txt)
-#     tokens = []
-#     for txt in uniq_txt:
-#         tokens.extend(simple_preproc(txt))
-#     c = Counter(tokens)
-#     return _filter_rare_words(c, min_occurancies)
 
 
 class Preproc:
@@ -58,7 +33,6 @@ class Preproc:
         return vector
 
     def _convert_text_idx_to_token_idxs(self, txts: List[str]) -> List[List[int]]:
-        # допишите ваш код здесь
         result = []
         for txt in txts:
             tokens = self.preproc_func(txt)
@@ -101,11 +75,8 @@ class SearchIndex:
         print(self.index.ntotal)
 
     def search(self, vectors: List[List[int]], n_candidates: int = 100) -> np.ndarray:
-        # index_logger = logging.getLogger('index')
         vectors = self.idx_vectors_to_doc_vectors(vectors)
-
-        # index_logger.info(vectors)
-        D, I = self.index.search(vectors, self.n_neighbours)
+        _, I = self.index.search(vectors, self.n_neighbours)
         return I[..., :n_candidates]
 
     def idx_vectors_to_doc_vectors(self, vectors):
@@ -177,11 +148,9 @@ class QueryService:
             knrm_pred = self.knrm(
                 {'query': knrm_queries, 'document': knrm_documents}
             ).reshape(-1)
-
-        sorted_idx = np.argsort(knrm_pred).tolist()[
-            ::-1][:self.max_documents_in_suggestion]
+        sorted_idx = knrm_pred.argsort(descending=True)[:self.max_documents_in_suggestion]
         # print(sorted_idx.shape)
-        ranked_candidates = candidate_idxs[sorted_idx].tolist()
+        ranked_candidates = [candidate_idxs[i] for i in sorted_idx]
         # raise Exception([ranked_candidates, sorted_idx,candidate_idxs,type(ranked_candidates)])
 
         def make_suggestion_pair(idx):
@@ -190,9 +159,29 @@ class QueryService:
         return [make_suggestion_pair(idx) for idx in ranked_candidates]
 
 
-class BuildeIndexService:
-    def __init__(self) -> None:
-        pass
+class BuildIndexService:
+    def __init__(self, preproc_index: Preproc,
+                 preproc_knrm: Preproc,
+                 index: SearchIndex) -> None:
+        self.preproc_index = preproc_index
+        self.preproc_knrm = preproc_knrm
+        self.index = index
 
-    def build(self) -> DocumentStore:
-        pass
+    def build(self, documents) -> Tuple[int, DocumentStore]:
+        texts = []
+        system_id_to_doc_id = {}
+        for system_id, (doc_id, doc) in enumerate(documents.items()):
+            texts.append(doc)
+            system_id_to_doc_id[system_id] = doc_id
+
+        vectors = self.preproc_index(texts)
+
+        self.index.add(vectors)
+
+        knrm_vectors = self.preproc_knrm(texts)
+
+        return self.index.index.ntotal, DocumentStore(
+            document_src=documents,
+            system_id_to_doc_id=system_id_to_doc_id,
+            document_vectors=np.array(knrm_vectors)
+        )
