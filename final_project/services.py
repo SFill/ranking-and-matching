@@ -1,4 +1,5 @@
 from collections import Counter
+from dataclasses import dataclass
 import logging
 import re
 import string
@@ -7,12 +8,12 @@ import pandas as pd
 from typing import Callable, Dict, List
 
 import faiss
+from final_project.model import KNRM
 import nltk
 
+from langdetect import detect
 
-EMB_SIZE = 50
-
-
+import torch
 
 
 # def _filter_rare_words(vocab: Dict[str, int], min_occurancies: int) -> Dict[str, int]:
@@ -85,12 +86,8 @@ class Preproc:
 
 
 class SearchIndex:
-    def __init__(self, embedding_matrix: np.ndarray, n_neighbours: int = 10):
-        # self.index = faiss.IndexFlatL2(EMB_SIZE)
-        self.index = faiss.IndexHNSWFlat(EMB_SIZE, 32)
-        if not self.index.is_trained:
-            # тренировка
-            pass
+    def __init__(self, embedding_matrix: np.ndarray, n_neighbours: int = 10, emb_size: int = 50):
+        self.index = faiss.IndexFlatL2(emb_size)
         self.n_neighbours = n_neighbours
 
         self.embedding_matrix = embedding_matrix
@@ -103,14 +100,12 @@ class SearchIndex:
         self.is_initialized = True
         print(self.index.ntotal)
 
-    def search(self, vectors: List[List[int]], n_candidates: int = 20) -> np.ndarray:
+    def search(self, vectors: List[List[int]], n_candidates: int = 100) -> np.ndarray:
         # index_logger = logging.getLogger('index')
         vectors = self.idx_vectors_to_doc_vectors(vectors)
-        
+
         # index_logger.info(vectors)
         D, I = self.index.search(vectors, self.n_neighbours)
-        # I = self.index.search(vectors, self.n_neighbours)
-        # print(I)
         return I[..., :n_candidates]
 
     def idx_vectors_to_doc_vectors(self, vectors):
@@ -120,3 +115,84 @@ class SearchIndex:
             to_stuck.append(v)
         return np.array(to_stuck)
 
+
+@dataclass
+class DocumentStore:
+    document_src: Dict[str, str]
+    system_id_to_doc_id: Dict[int, str]
+    document_vectors: np.ndarray
+
+
+class QueryService:
+    max_documents_in_suggestion = 10
+
+    def __init__(self,
+                 preproc_index: Preproc,
+                 preproc_knrm: Preproc,
+                 index: SearchIndex,
+                 knrm: KNRM,
+                 document_store: DocumentStore,
+                 ) -> None:
+        self.preproc_index = preproc_index
+        self.preproc_knrm = preproc_knrm
+        self.index = index
+        self.knrm = knrm
+        self.document_store = document_store
+
+    def handle_queries(self, queries: List[str]):
+        lang_check_list = []
+        suggestions_list = []
+
+        for query in queries:
+            is_en = detect(query) == 'en'
+            lang_check_list.append(is_en)
+            if not is_en:
+                suggestions_list.append(None)
+                continue
+            suggestions_list.append(
+                self.get_suggestion(query)
+            )
+        return lang_check_list, suggestions_list
+
+    def get_suggestion(self, query: str):
+        # 3) Получили вектора слов вопросов и вытащили ид кандидатов
+        index_vectors = self.preproc_index([query])
+        candidates_idx_matrix = self.index.search(index_vectors)
+        # TODO убрать -1
+        candidate_idxs = [i for i in candidates_idx_matrix[0] if i != -1]
+        return self.rank_documents(query, candidate_idxs)
+
+    def rank_documents(self, query, candidate_idxs):
+        q_vector = self.preproc_knrm([query])[0]
+        # ранжируем документы
+        # вытащили вектора слов кандидатов
+        # candidate_vectors = document_matrix_knrm[candidate_idxs]
+        candidate_vectors = self.document_store.document_vectors[candidate_idxs]
+
+        knrm_queries = torch.LongTensor(
+            [q_vector] * len(candidate_vectors))
+        knrm_documents = torch.LongTensor(candidate_vectors)
+        print(knrm_queries.shape, knrm_documents.shape)
+        with torch.no_grad():
+            knrm_pred = self.knrm(
+                {'query': knrm_queries, 'document': knrm_documents}
+            ).reshape(-1)
+
+        sorted_idx = np.argsort(knrm_pred).tolist()[
+            ::-1][:self.max_documents_in_suggestion]
+        # print(sorted_idx.shape)
+        ranked_candidates = candidate_idxs[sorted_idx].tolist()
+        # raise Exception([ranked_candidates, sorted_idx,candidate_idxs,type(ranked_candidates)])
+
+        def make_suggestion_pair(idx):
+            doc_id = self.document_store.system_id_to_doc_id[idx]
+            return (doc_id, self.document_store.document_src[doc_id])
+        return [make_suggestion_pair(idx) for idx in ranked_candidates]
+
+
+class BuildeIndexService:
+    def __init__(self) -> None:
+        pass
+
+    def build(self) -> DocumentStore:
+        pass

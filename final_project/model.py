@@ -83,13 +83,14 @@ class KNRM(torch.nn.Module):
         mlp[-1] = mlp[-1][:-1]
         return torch.nn.Sequential(*mlp)
 
-    def forward(self, input_1: Dict[str, torch.Tensor], input_2: Dict[str, torch.Tensor]) -> torch.FloatTensor:
-        logits_1 = self.predict(input_1)
-        logits_2 = self.predict(input_2)
-
-        logits_diff = logits_1 - logits_2
-
-        out = self.out_activation(logits_diff)
+    def forward(self, inputs: Dict[str, torch.Tensor]) -> torch.FloatTensor:
+        query, doc = inputs['query'], inputs['document']
+        # shape = [B, L, R]
+        matching_matrix = self._get_matching_matrix(query, doc)
+        # shape [B, K]
+        kernels_out = self._apply_kernels(matching_matrix)
+        # shape [B]
+        out = self.mlp(kernels_out)
         return out
 
     def _get_matching_matrix(self, query: torch.Tensor, doc: torch.Tensor) -> torch.FloatTensor:
@@ -116,14 +117,3 @@ class KNRM(torch.nn.Module):
         # shape = [B, K]
         kernels_out = torch.stack(KM, dim=1)
         return kernels_out
-
-    def predict(self, inputs: Dict[str, torch.Tensor]) -> torch.FloatTensor:
-        query, doc = inputs['query'], inputs['document']
-        # shape = [B, L, R]
-        matching_matrix = self._get_matching_matrix(query, doc)
-        # shape [B, K]
-        kernels_out = self._apply_kernels(matching_matrix)
-        # shape [B]
-        out = self.mlp(kernels_out)
-        return out
-
