@@ -8,6 +8,7 @@ The system is represented by a microservice based on Flask. The top-level pipeli
 - Then, candidate questions are searched using FAISS (by vector similarity)
 - These candidates are re-ranked by the KNRM model, after which up to 10 candidates are issued as a response.
 
+Data is stored with git lfs
 
 # how to run
 ```bash
