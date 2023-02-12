@@ -72,7 +72,6 @@ class SearchIndex:
 
         self.index.add(vectors)
         self.is_initialized = True
-        print(self.index.ntotal)
 
     def search(self, vectors: List[List[int]], n_candidates: int = 100) -> np.ndarray:
         vectors = self.idx_vectors_to_doc_vectors(vectors)
@@ -169,6 +168,7 @@ class BuildIndexService:
 
     def build(self, documents) -> Tuple[int, DocumentStore]:
         texts = []
+        # custom implementation, may be replaced by faiss.IndexIDMap
         system_id_to_doc_id = {}
         for system_id, (doc_id, doc) in enumerate(documents.items()):
             texts.append(doc)
