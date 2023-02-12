@@ -21,7 +21,7 @@ docker-compose up --build
 curl -X GET \
   'http://127.0.0.1:11000/ping' \
   --header 'Accept: */*' \
-  --header 'Content-Type: application/json' \
+  --header 'Content-Type: application/json'
 
 
 curl -X POST \

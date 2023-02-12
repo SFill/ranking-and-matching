@@ -5,11 +5,11 @@ import numpy as np
 
 from flask import request
 
-from .embedings import build_emb_matrixes
+from .vectors import build_emb_matrixes, Preproc
 from .model import KNRM
 
-from .services import BuildIndexService, DocumentStore, Preproc, QueryService, SearchIndex
-
+from .services import BuildIndexService, DocumentStore, Preproc, QueryService
+from .search import SearchIndex
 import os
 
 
@@ -90,7 +90,7 @@ class ApplicationWrapper:
         return {
             "lang_check": lang_check,
 
-            # suggestions: [СписокКандидатов[(id_документа,исходный_текст) or None]]
+            # suggestions: [CandidateList[(document_id,document) or None]]
             "suggestions": suggestions
 
         }

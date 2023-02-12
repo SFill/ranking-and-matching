@@ -1,25 +1,10 @@
-import string
-from collections import Counter
-from typing import Dict, List, Tuple, Union, Callable
+from typing import Dict, List
 
-import nltk
 import numpy as np
-import math
-import pandas as pd
 import torch
 import torch.nn.functional as F
 
-from torch import nn
 
-import itertools as it
-import re
-
-# Замените пути до директорий и файлов! Можете использовать для локальной отладки.
-# При проверке на сервере пути будут изменены
-glue_qqp_dir = '/data/QQP/'
-glove_path = '/data/glove.6B.50d.txt'
-
-EMB_SIZE = 50
 
 
 class GaussianKernel(torch.nn.Module):
